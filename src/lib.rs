@@ -25,153 +25,72 @@ pub struct Rope<T> {
 impl<T> Rope<T> {
     /// Creates an empty rope.
     pub fn new() -> Self {
-        Self::default()
+        todo!();
     }
 
     /// Clears the rope, removing all values.
     pub fn clear(&mut self) {
-        let drop_tree = Self {
-            root: self.root,
-            size: self.size,
-        };
-        self.root = None;
-        self.size = 0;
-        drop(drop_tree)
+        todo!();
     }
 
     /// Returns the number of elements in the rope.
     pub fn len(&self) -> usize {
-        self.size
+        todo!();
     }
 
     /// Returns `true` if the rope is empty.
     pub fn is_empty(&self) -> bool {
-        self.len() == 0
+        todo!();
     }
 
     /// Provides a reference to the element at the given index.
     /// Returns `None` if `index` is out of bounds.
     pub fn get(&mut self, index: usize) -> Option<&T> {
-        unsafe {
-            let p = self.kth_ptr(index)?;
-            self.splay(p);
-            Some(&(*p.as_ptr()).data)
-        }
+        todo!();
     }
 
     /// Provides a mutable reference to the element at the given index.
     /// Returns `None` if `index` is out of bounds.
     pub fn get_mut(&mut self, index: usize) -> Option<&mut T> {
-        unsafe {
-            let p = self.kth_ptr(index)?;
-            self.splay(p);
-            Some(&mut (*p.as_ptr()).data)
-        }
+        todo!();
     }
 
     /// Inserts an element at `index` within the rope.
     /// Panics if `index` is greater than the rope's length.
     pub fn insert(&mut self, index: usize, value: T) {
-        assert!(index <= self.len());
-
-        unsafe {
-            let new_node = NonNull::new_unchecked(Box::into_raw(Box::new(Node::new(value))));
-
-            if let Some(root) = self.root {
-                // `self` is not empty
-                let idx_node = self.kth_ptr(index);
-
-                if let Some(idx_node) = idx_node {
-                    // `index` is in-bounds, thus `new_node` should be placed right before
-                    // `idx_node`.
-                    self.naive_insert_at_left(idx_node, new_node);
-                } else {
-                    // `index == self.len()`, thus `new_node` should be placed at the rightmost of
-                    // the rope. Set `ptr` as the current rightmost node.
-                    let mut ptr = root;
-                    (*ptr.as_ptr()).prop_rev();
-                    while let Some(r) = (*ptr.as_ptr()).r {
-                        ptr = r;
-                        (*ptr.as_ptr()).prop_rev();
-                    }
-                    // Place `new_node` as the right child of `ptr`
-                    (*new_node.as_ptr()).p = Some(ptr);
-                    (*ptr.as_ptr()).r = Some(new_node);
-                }
-
-                let mut c = new_node;
-                while let Some(p) = (*c.as_ptr()).p {
-                    c = p;
-                    (*c.as_ptr()).update_subt_norev();
-                }
-            } else {
-                // `self` is empty
-                self.root = Some(new_node);
-            }
-
-            self.splay(new_node);
-            self.size += 1;
-        }
+        todo!();
     }
 
     /// Removes and returns the element at `index` from the deque.
     /// Returns `None` if `index` is out of bounds.
     pub fn remove(&mut self, index: usize) -> Option<T> {
-        if index >= self.len() {
-            return None;
-        }
-
-        let data: T = unsafe {
-            if let Some(mut rt) = self.kth_ptr(index) {
-                rt = self.remove_helper(rt);
-                if let Some(rtp) = (*rt.as_ptr()).p {
-                    self.splay(rtp);
-                }
-                let retr = Box::from_raw(rt.as_ptr());
-                retr.data
-            } else {
-                unreachable!()
-            }
-        };
-
-        self.size -= 1;
-        Some(data)
+        todo!();
     }
 
     /// Prepends an element to the rope.
     pub fn push_front(&mut self, value: T) {
-        self.insert(0, value);
+        todo!();
     }
 
     /// Appends an element to the rope.
     pub fn push_back(&mut self, value: T) {
-        self.insert(self.len(), value);
+        todo!();
     }
 
     /// Removes the first element and returns it, or `None` if the rope is empty.
     pub fn pop_front(&mut self) -> Option<T> {
-        self.remove(0)
+        todo!();
     }
 
     /// Removes the last element and returns it, or `None` if the rope is empty.
     pub fn pop_back(&mut self) -> Option<T> {
-        self.remove(self.len().checked_sub(1)?)
+        todo!();
     }
 
     /// Swaps elements at indices `i` and `j`. `i` and `j` may be equal.
     /// Panics if either index is out of bounds.
     pub fn swap(&mut self, i: usize, j: usize) {
-        // Safety: The actual address of nodes are never changed while searching for nodes and
-        // splaying.
-        unsafe {
-            let inode = self
-                .kth_ptr(i)
-                .expect(&format!("The len is {} but the index is {}", self.size, i));
-            let jnode = self
-                .kth_ptr(j)
-                .expect(&format!("The len is {} but the index is {}", self.size, i));
-            mem::swap(&mut (*inode.as_ptr()).data, &mut (*jnode.as_ptr()).data)
-        }
+        todo!()
     }
 
     /// Splits the rope into two at the given index, and returns a new `Rope` which reuses
@@ -239,10 +158,7 @@ impl<T> Rope<T> {
 
 impl<T> Default for Rope<T> {
     fn default() -> Self {
-        Self {
-            root: None,
-            size: 0,
-        }
+        todo!()
     }
 }
 
@@ -260,22 +176,7 @@ impl<T> Debug for Rope<T> {
 
 impl<T> Drop for Rope<T> {
     fn drop(&mut self) {
-        if let Some(root) = self.root {
-            unsafe {
-                let mut st: Vec<*mut Node<T>> = Vec::new();
-                st.push(root.as_ptr());
-                while let Some(t) = st.pop() {
-                    let v = Box::from_raw(t);
-                    if let Some(l) = v.l {
-                        st.push(l.as_ptr());
-                    }
-                    if let Some(r) = v.r {
-                        st.push(r.as_ptr());
-                    }
-                    drop(v);
-                }
-            }
-        }
+        todo!()
     }
 }
 
@@ -372,305 +273,6 @@ impl<T> Node<T> {
             r: None,
             p: None,
             rev: false,
-        }
-    }
-
-    fn left_size_norev(&self) -> usize {
-        unsafe { self.l.map_or(0, |l| (*l.as_ptr()).subt) }
-    }
-    fn right_size_norev(&self) -> usize {
-        unsafe { self.r.map_or(0, |r| (*r.as_ptr()).subt) }
-    }
-    /// Updates the value of `subt`, but not resolving `rev`.
-    fn update_subt_norev(&mut self) {
-        self.subt = 1 + self.left_size_norev() + self.right_size_norev()
-    }
-
-    fn prop_rev(&mut self) {
-        if self.rev {
-            self.rev = false;
-            mem::swap(&mut self.l, &mut self.r);
-            unsafe {
-                if let Some(l) = self.l {
-                    (*l.as_ptr()).rev ^= true;
-                }
-                if let Some(r) = self.r {
-                    (*r.as_ptr()).rev ^= true;
-                }
-            }
-        }
-    }
-
-    /// Returns `Some(is_left, parent)`. If `x` doesn't have a parent node, returns `None`.
-    /// Also resolves `rev` of the parent of `x`. Note that it doesn't resolve `rev` of `x`.
-    fn is_left_child_withrev(x: NonNull<Self>) -> Option<(bool, NonNull<Self>)> {
-        unsafe {
-            (*x.as_ptr()).prop_rev();
-            if let Some(p) = (*x.as_ptr()).p {
-                if (*p.as_ptr())
-                    .l
-                    .map_or(false, |pl| ptr::eq(x.as_ptr(), pl.as_ptr()))
-                {
-                    Some((true, p))
-                } else {
-                    Some((false, p))
-                }
-            } else {
-                None
-            }
-        }
-    }
-}
-
-impl<T> Rope<T> {
-    /// Adds `value` as a new root of a rope, and putting the original root as a left child of
-    /// the root.
-    unsafe fn push_ontop_root(&mut self, value: T) {
-        let new_node = NonNull::new_unchecked(Box::into_raw(Box::new(Node::new(value))));
-        if let Some(root) = self.root {
-            (*root.as_ptr()).p = Some(new_node);
-            (*new_node.as_ptr()).l = Some(root);
-        }
-        self.root = Some(new_node);
-        (*new_node.as_ptr()).update_subt_norev();
-        self.size += 1;
-    }
-
-    /// Returns `false` if `x` has no parent, and does nothing.
-    /// Returns `true` if `x` has a parent, and perform rotation.
-    unsafe fn rotate(&mut self, x: NonNull<Node<T>>) -> bool {
-        (*x.as_ptr()).prop_rev();
-        if let Some((is_x_left, p)) = Node::is_left_child_withrev(x) {
-            // Check if p is root
-            if let Some(root) = self.root {
-                if ptr::eq(root.as_ptr(), p.as_ptr()) {
-                    self.root = Some(x);
-                }
-            }
-
-            // Connect x to xpp. If pp is None, do nothing.
-            (*x.as_ptr()).p = (*p.as_ptr()).p;
-            if let Some((is_p_left, pp)) = Node::is_left_child_withrev(p) {
-                if is_p_left {
-                    (*pp.as_ptr()).l = Some(x);
-                } else {
-                    (*pp.as_ptr()).r = Some(x);
-                }
-            }
-
-            if is_x_left {
-                let b = (*x.as_ptr()).r;
-                (*x.as_ptr()).r = Some(p);
-                (*p.as_ptr()).p = Some(x);
-                (*p.as_ptr()).l = b;
-                if let Some(b) = b {
-                    (*b.as_ptr()).p = Some(p);
-                }
-            } else {
-                let b = (*x.as_ptr()).l;
-                (*x.as_ptr()).l = Some(p);
-                (*p.as_ptr()).p = Some(x);
-                (*p.as_ptr()).r = b;
-                if let Some(b) = b {
-                    (*b.as_ptr()).p = Some(p);
-                }
-            }
-
-            (*p.as_ptr()).update_subt_norev();
-            (*x.as_ptr()).update_subt_norev();
-            true
-        } else {
-            // `x` has no parent
-            false
-        }
-    }
-
-    /// Splays `x` up to `self`'s root.
-    fn splay(&mut self, x: NonNull<Node<T>>) {
-        unsafe {
-            (*x.as_ptr()).prop_rev();
-            while let Some(root) = self.root {
-                if ptr::eq(x.as_ptr(), root.as_ptr()) {
-                    break;
-                }
-
-                if let Some((is_x_left, p)) = Node::is_left_child_withrev(x) {
-                    if ptr::eq(root.as_ptr(), p.as_ptr()) {
-                        // If p is root, rotate x once
-                        self.rotate(x);
-                    } else {
-                        // Panics if pp doesn't exist, which happens only when p is root
-                        let (is_p_left, _pp) = Node::is_left_child_withrev(p).unwrap();
-                        if is_x_left == is_p_left {
-                            self.rotate(p);
-                            self.rotate(x);
-                        } else {
-                            self.rotate(x);
-                            self.rotate(x);
-                        }
-                    }
-                } else {
-                    // x has no parent, which should logically never happen
-                    unreachable!()
-                }
-            }
-        }
-    }
-
-    /// Returns a link to the element at `index`. Returns `None` if `index` is out of bounds.
-    /// The returned node may have its `rev` field as `true`.
-    unsafe fn kth_ptr(&self, index: usize) -> Link<T> {
-        if self.size <= index {
-            return None;
-        }
-        if let Some(r) = self.root {
-            let mut rem = index;
-            let mut ptr = r;
-            loop {
-                (*ptr.as_ptr()).prop_rev();
-                let lsize = (*ptr.as_ptr()).left_size_norev();
-                match rem.cmp(&lsize) {
-                    Less => {
-                        ptr = (*ptr.as_ptr()).l?;
-                    }
-                    Equal => {
-                        break;
-                    }
-                    Greater => {
-                        rem -= lsize + 1;
-                        ptr = (*ptr.as_ptr()).r?;
-                    }
-                }
-            }
-            Some(ptr)
-        } else {
-            None
-        }
-    }
-
-    /// Insert `new` right before of `x`.
-    unsafe fn naive_insert_at_left(&mut self, x: NonNull<Node<T>>, new: NonNull<Node<T>>) {
-        (*x.as_ptr()).prop_rev();
-        if let Some(l) = (*x.as_ptr()).l {
-            // If `x` has its left child, then we need to find another place for `new`. Set `ptr`
-            // as the node right before `x`.
-            let mut ptr = l;
-            (*ptr.as_ptr()).prop_rev();
-            while let Some(r) = (*ptr.as_ptr()).r {
-                ptr = r;
-                (*ptr.as_ptr()).prop_rev();
-            }
-            // Now `ptr.r` is `None`. Attach `new` to `ptr.r`
-            (*new.as_ptr()).p = Some(ptr);
-            (*ptr.as_ptr()).r = Some(new);
-        } else {
-            // If `x` doesn't have its left child, then `new` can be attached right away at `x.l`
-            (*new.as_ptr()).p = Some(x);
-            (*x.as_ptr()).l = Some(new);
-        }
-    }
-
-    /// Remove `x` from `self`, while keeping `self`'s BST characteristic, and returns the
-    /// removed node.
-    unsafe fn remove_helper(&mut self, x: NonNull<Node<T>>) -> NonNull<Node<T>> {
-        (*x.as_ptr()).prop_rev();
-
-        // Set `remove_target` to the actual node to delete
-        match ((*x.as_ptr()).l, ((*x.as_ptr()).r)) {
-            (None, None) => {
-                // Reset root if the node itself is root
-                if let Some(root) = self.root {
-                    if ptr::eq(root.as_ptr(), x.as_ptr()) {
-                        self.root = None;
-                    }
-                }
-
-                // Detach itself from parent
-                if let Some((is_x_left, p)) = Node::is_left_child_withrev(x) {
-                    if is_x_left {
-                        (*p.as_ptr()).l = None;
-                    } else {
-                        (*p.as_ptr()).r = None;
-                    }
-                    // Update subtree size
-                    let mut p = p;
-                    (*p.as_ptr()).update_subt_norev();
-                    while let Some(pp) = (*p.as_ptr()).p {
-                        p = pp;
-                        (*p.as_ptr()).update_subt_norev();
-                    }
-                }
-                x
-            }
-
-            (Some(l), None) => {
-                // `x` only has its left child `l`
-                // Reset root if `x` is root
-                if let Some(root) = self.root {
-                    if ptr::eq(root.as_ptr(), x.as_ptr()) {
-                        // `l` will be the new root
-                        self.root = Some(l);
-                    }
-                }
-
-                (*l.as_ptr()).p = (*x.as_ptr()).p; // Change `l.p` from `x` to `x.p`
-                if let Some((is_rt_left, p)) = Node::is_left_child_withrev(x) {
-                    // Change `x.p`'s child from `x` to `l`
-                    if is_rt_left {
-                        (*p.as_ptr()).l = Some(l);
-                    } else {
-                        (*p.as_ptr()).r = Some(l);
-                    }
-                }
-
-                let mut p = l;
-                while let Some(pp) = (*p.as_ptr()).p {
-                    p = pp;
-                    (*p.as_ptr()).update_subt_norev();
-                }
-                x
-            }
-
-            (None, Some(r)) => {
-                // `x` only has its right child `r`
-                // Reset root if `x` is root
-                if let Some(root) = self.root {
-                    if ptr::eq(root.as_ptr(), x.as_ptr()) {
-                        // `r` will be the new root
-                        self.root = Some(r);
-                    }
-
-                    (*r.as_ptr()).p = (*x.as_ptr()).p; // Set `r.p` from `x` to `x.p`
-                    if let Some((is_rt_left, p)) = Node::is_left_child_withrev(x) {
-                        // Change `x.p`'s child from `x` to `r`
-                        if is_rt_left {
-                            (*p.as_ptr()).l = Some(r);
-                        } else {
-                            (*p.as_ptr()).r = Some(r);
-                        }
-                    }
-
-                    let mut p = r;
-                    while let Some(pp) = (*p.as_ptr()).p {
-                        p = pp;
-                        (*p.as_ptr()).update_subt_norev();
-                    }
-                }
-                x
-            }
-
-            (Some(l), Some(_)) => {
-                // Set `sw` as the rightmost node at the left side of `x`
-                let mut sw = l;
-                (*sw.as_ptr()).prop_rev();
-                while let Some(sr) = (*sw.as_ptr()).r {
-                    sw = sr;
-                    (*sw.as_ptr()).prop_rev();
-                }
-                mem::swap(&mut (*x.as_ptr()).data, &mut (*sw.as_ptr()).data);
-                sw = self.remove_helper(sw); // Naively remove the moved node `sw`
-                sw
-            }
         }
     }
 }
