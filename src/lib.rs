@@ -2,6 +2,7 @@
 
 use std::{
     cmp::Ordering::*,
+    debug_assert_eq,
     fmt::Debug,
     marker::PhantomData,
     mem,
@@ -23,51 +24,67 @@ use std::{
 pub struct Rope<T> {
     root: Link<T>,
     size: usize,
+    _marker: PhantomData<Node<T>>,
 }
 
 impl<T> Rope<T> {
     /// Creates an empty rope.
     pub fn new() -> Self {
-        todo!();
+        Self::default()
     }
 
     /// Clears the rope, removing all values.
     pub fn clear(&mut self) {
-        todo!();
+        let mut drop_tree = Self {
+            root: self.root,
+            size: self.size,
+            _marker: PhantomData,
+        };
+        self.root = None;
+        self.size = 0;
+        drop(drop_tree);
     }
 
     /// Returns the number of elements in the rope.
     pub fn len(&self) -> usize {
-        todo!();
+        self.size
     }
 
     /// Returns `true` if the rope is empty.
     pub fn is_empty(&self) -> bool {
-        todo!();
+        self.len() == 0
     }
 
     /// Provides a reference to the element at the given index.
     /// Returns `None` if `index` is out of bounds.
     pub fn get(&mut self, index: usize) -> Option<&T> {
-        todo!();
+        let node = self.kth_ptr(index);
+        node.map(|node| unsafe { &node.as_ref().data })
     }
 
     /// Provides a mutable reference to the element at the given index.
     /// Returns `None` if `index` is out of bounds.
     pub fn get_mut(&mut self, index: usize) -> Option<&mut T> {
-        todo!();
+        let node = self.kth_ptr(index);
+        node.map(|mut node| unsafe { &mut node.as_mut().data })
     }
 
     /// Inserts an element at `index` within the rope.
     /// Panics if `index` is greater than the rope's length.
     pub fn insert(&mut self, index: usize, value: T) {
-        todo!();
+        let mut it: Rope<T> = [value].into();
+        self.insert_rope(index, it);
     }
 
     /// Removes and returns the element at `index` from the deque.
     /// Returns `None` if `index` is out of bounds.
     pub fn remove(&mut self, index: usize) -> Option<T> {
-        todo!();
+        if index >= self.len() {
+            return None;
+        }
+        let taken = self.take_range_out(index..=index);
+        let value = taken.into_iter().next().unwrap();
+        Some(value)
     }
 
     /// Prepends an element to the rope.
@@ -102,7 +119,40 @@ impl<T> Rope<T> {
     /// elements `[at, len)`.
     /// Panics if `at > len`.
     pub fn split_off(&mut self, at: usize) -> Rope<T> {
-        todo!()
+        match self.len().cmp(&at) {
+            Less => panic!("The len is {}, but `at` is {}", self.len(), at),
+            Equal => Rope::default(),
+            Greater => {
+                if let Some(end) = at.checked_sub(1) {
+                    unsafe {
+                        let pivot = self.kth_ptr(end).expect(&format!(
+                            "`self.size` is {}, but `self.kth_ptr({})` returns `None`",
+                            self.size, end
+                        ));
+                        let taken = (*pivot.as_ptr()).r;
+
+                        (*pivot.as_ptr()).r = None;
+                        if let Some(taken) = taken {
+                            (*taken.as_ptr()).p = None;
+                        }
+
+                        let ret = Rope {
+                            root: taken,
+                            size: self.len() - at,
+                            _marker: PhantomData,
+                        };
+                        self.size = at;
+                        Node::update(pivot);
+                        ret
+                    }
+                } else {
+                    // at == 0, thus `self` is cleared out and the original `self` is returned back
+                    let mut ret = Rope::default();
+                    mem::swap(&mut ret, self);
+                    ret
+                }
+            }
+        }
     }
 
     /// Takes out the elements at `range` from the rope, and returns a new `Rope` which reuses
@@ -113,17 +163,56 @@ impl<T> Rope<T> {
     /// Panics if the starting point is greater than the end point, or if the end point is
     /// greater than the length of the rope.
     pub fn take_range_out(&mut self, range: impl RangeBounds<usize>) -> Rope<T> {
-        todo!()
+        fn range_to_bounds(n: usize, range: impl RangeBounds<usize>) -> (usize, usize) {
+            use std::ops::Bound::*;
+            let l = match range.start_bound() {
+                Included(&v) => v,
+                Excluded(&v) => v + 1,
+                Unbounded => 0,
+            };
+            let r = match range.end_bound() {
+                Included(&v) => v + 1,
+                Excluded(&v) => v,
+                Unbounded => n,
+            };
+            (l, r)
+        }
+        let (l, r) = range_to_bounds(self.len(), range);
+        let right = self.split_off(r);
+        let mid = self.split_off(l);
+        self.append(right);
+        mid
     }
 
     /// Appends all the elements of `other` to `self`, consuming `other`.
-    pub fn append(&mut self, other: Rope<T>) {
-        todo!()
+    pub fn append(&mut self, mut other: Rope<T>) {
+        if let Some(rmost) = self.len().checked_sub(1) {
+            let pivot = self.kth_ptr(rmost).expect(&format!(
+                "`self.size` is {}, but `self.kth_ptr({})` returns `None`",
+                self.size, rmost
+            ));
+            unsafe {
+                (*pivot.as_ptr()).r = other.root;
+                if let Some(r) = other.root {
+                    (*r.as_ptr()).p = Some(pivot);
+                }
+            }
+            Node::update(pivot);
+            debug_assert!(ptr::eq(self.root.unwrap().as_ptr(), pivot.as_ptr()));
+            self.size = unsafe { (*pivot.as_ptr()).subt };
+            other.root = None;
+            other.size = 0;
+        } else {
+            // `self` is empty
+            *self = other;
+        }
     }
 
     /// Inserts a rope at `index` within `self`.
     pub fn insert_rope(&mut self, index: usize, other: Rope<T>) {
-        todo!()
+        let right = self.split_off(index);
+        self.append(other);
+        self.append(right);
     }
 
     /// Rotates the rope `mid` places to the left.
@@ -161,11 +250,15 @@ impl<T> Rope<T> {
 
 impl<T> Default for Rope<T> {
     fn default() -> Self {
-        todo!()
+        Self {
+            root: None,
+            size: 0,
+            _marker: PhantomData,
+        }
     }
 }
 
-impl<T> Clone for Rope<T> {
+impl<T: Clone> Clone for Rope<T> {
     fn clone(&self) -> Self {
         todo!()
     }
@@ -179,13 +272,51 @@ impl<T> Debug for Rope<T> {
 
 impl<T> Drop for Rope<T> {
     fn drop(&mut self) {
-        todo!()
+        if let Some(root) = self.root {
+            unsafe {
+                let mut st: Vec<NonNull<Node<T>>> = Vec::with_capacity(self.len());
+                st.push(root);
+                while let Some(t) = st.pop() {
+                    let v = Box::from_raw(t.as_ptr());
+                    if let Some(l) = v.l {
+                        st.push(l);
+                    }
+                    if let Some(r) = v.r {
+                        st.push(r)
+                    }
+                }
+            }
+        }
     }
 }
 
 impl<T> FromIterator<T> for Rope<T> {
     fn from_iter<S: IntoIterator<Item = T>>(iter: S) -> Self {
-        todo!()
+        let mut iter = iter.into_iter();
+        if let Some(head) = iter.next() {
+            let mut size = 1;
+            unsafe {
+                let root = Node::new_nonnull(head);
+                let mut ptr = root;
+                for v in iter {
+                    let mut next = Node::new_nonnull(v);
+                    (*ptr.as_ptr()).r = Some(next);
+                    (*next.as_ptr()).p = Some(ptr);
+                    ptr = next;
+                    size += 1;
+                }
+                let mut ret = Self {
+                    root: Some(ptr),
+                    size,
+                    _marker: PhantomData,
+                };
+                let rightmost = ret.kth_ptr(size - 1).unwrap();
+                ret.splay(rightmost);
+                ret
+            }
+        } else {
+            Self::default()
+        }
     }
 }
 
@@ -196,13 +327,24 @@ impl<T> Extend<T> for Rope<T> {
 }
 
 pub struct Iter<'a, T> {
-    marker: PhantomData<&'a T>,
+    rope: &'a Rope<T>,
+    stack: Vec<NonNull<Node<T>>>,
+    curr: Link<T>,
 }
 
 impl<'a, T> Iterator for Iter<'a, T> {
     type Item = &'a T;
     fn next(&mut self) -> Option<Self::Item> {
-        todo!()
+        unsafe {
+            if let Some(prv) = self.curr {
+                let ret = &prv.as_ref().data;
+                let nxt = self.rope.adjacent_after(prv);
+                self.curr = nxt;
+                Some(ret)
+            } else {
+                None
+            }
+        }
     }
 }
 
@@ -210,7 +352,11 @@ impl<'a, T> IntoIterator for &'a Rope<T> {
     type Item = &'a T;
     type IntoIter = Iter<'a, T>;
     fn into_iter(self) -> Self::IntoIter {
-        todo!()
+        Self::IntoIter {
+            rope: self,
+            stack: Vec::new(),
+            curr: self.kth_ptr_static(0),
+        }
     }
 }
 
@@ -252,6 +398,12 @@ impl<T> IntoIterator for Rope<T> {
     }
 }
 
+impl<T, const N: usize> From<[T; N]> for Rope<T> {
+    fn from(value: [T; N]) -> Self {
+        value.into_iter().collect()
+    }
+}
+
 //------------------
 // Helper functions
 //------------------
@@ -285,6 +437,10 @@ impl<T> Node<T> {
             p: None,
             rev: false,
         }
+    }
+
+    fn new_nonnull(data: T) -> NonNull<Node<T>> {
+        unsafe { NonNull::new_unchecked(Box::into_raw(Box::new(Node::new(data)))) }
     }
 
     /// Propagates `rev` of `x`. Obviously `x` doesn't need to be already propagated,
@@ -492,73 +648,83 @@ impl<T> Rope<T> {
     // `x` gets propagated after the function call, despite they don't stay as its ancestors
     // anymore.
     fn splay(&mut self, x: NonNull<Node<T>>) {
-        if let Some(root) = self.root {
-            while !ptr::eq(root.as_ptr(), x.as_ptr()) {
-                if let Some((is_x_left, p)) = Node::left_parent(x) {
-                    if ptr::eq(root.as_ptr(), p.as_ptr()) {
-                        // `p` is a root of `self` -> rotate(x)
-                        self.rotate(x);
-                    } else {
-                        if let Some((is_p_left, _)) = Node::left_parent(p) {
-                            if is_x_left == is_p_left {
-                                // zig-zig
-                                self.rotate(p);
-                                self.rotate(x);
-                            } else {
-                                // zig-zag
-                                self.rotate(x);
-                                self.rotate(x);
-                            }
-                        } else {
-                            // `g` simply doesn't exist, and `x` is not a root of `self`, thus `p`
-                            // should be the root. However, this branch is for the case where
-                            // `p` is not the root.
-                            unreachable!("`p` is not a root of `self`, but `g` doesn't exist and `x` is not a root either.");
-                        }
-                    }
-                } else {
-                    // If `x` is not a root but doesn't have a parent, this is a bug.
-                    unreachable!("`x` is not a root of `self`, but doesn't have a parent node!");
-                }
+        while let Some(root) = self.root {
+            if ptr::eq(root.as_ptr(), x.as_ptr()) {
+                break;
             }
-        } else {
-            unreachable!("`self` is empty, thus `x` is not in `self`.");
+            if let Some((is_x_left, p)) = Node::left_parent(x) {
+                if ptr::eq(root.as_ptr(), p.as_ptr()) {
+                    // `p` is a root of `self` -> rotate(x)
+                    self.rotate(x);
+                } else {
+                    if let Some((is_p_left, _)) = Node::left_parent(p) {
+                        if is_x_left == is_p_left {
+                            // zig-zig
+                            self.rotate(p);
+                            self.rotate(x);
+                        } else {
+                            // zig-zag
+                            self.rotate(x);
+                            self.rotate(x);
+                        }
+                    } else {
+                        // `g` simply doesn't exist, and `x` is not a root of `self`, thus `p`
+                        // should be the root. However, this branch is for the case where
+                        // `p` is not the root.
+                        unreachable!("`p` is not a root of `self`, but `g` doesn't exist and `x` is not a root either.");
+                    }
+                }
+            } else {
+                // If `x` is not a root but doesn't have a parent, this is a bug.
+                unreachable!("`x` is not a root of `self`, but doesn't have a parent node!");
+            }
         }
+
+        // if let Some(root) = self.root {
+        //     while !ptr::eq(root.as_ptr(), x.as_ptr()) {}
+        // } else {
+        //     unreachable!("`self` is empty, thus `x` is not in `self`.");
+        // }
     }
 
     unsafe fn splay_unchecked(&mut self, x: NonNull<Node<T>>) {
-        if let Some(root) = self.root {
-            while !ptr::eq(root.as_ptr(), x.as_ptr()) {
-                if let Some((is_x_left, p)) = Node::left_parent_unchecked(x) {
-                    if ptr::eq(root.as_ptr(), p.as_ptr()) {
-                        // `p` is a root of `self` -> rotate(x)
-                        self.rotate_unchecked(x);
-                    } else {
-                        if let Some((is_p_left, _)) = Node::left_parent_unchecked(p) {
-                            if is_x_left == is_p_left {
-                                // zig-zig
-                                self.rotate_unchecked(p);
-                                self.rotate_unchecked(x);
-                            } else {
-                                // zig-zag
-                                self.rotate_unchecked(x);
-                                self.rotate_unchecked(x);
-                            }
-                        } else {
-                            // `g` simply doesn't exist, and `x` is not a root of `self`, thus `p`
-                            // should be the root. However, this branch is for the case where
-                            // `p` is not the root.
-                            unreachable!("`p` is not a root of `self`, but `g` doesn't exist and `x` is not a root either.");
-                        }
-                    }
-                } else {
-                    // If `x` is not a root but doesn't have a parent, this is a bug.
-                    unreachable!("`x` is not a root of `self`, but doesn't have a parent node!");
-                }
+        while let Some(root) = self.root {
+            if ptr::eq(root.as_ptr(), x.as_ptr()) {
+                break;
             }
-        } else {
-            unreachable!("`self` is empty, thus `x` is not in `self`.");
+            if let Some((is_x_left, p)) = Node::left_parent_unchecked(x) {
+                if ptr::eq(root.as_ptr(), p.as_ptr()) {
+                    // `p` is a root of `self` -> rotate(x)
+                    self.rotate_unchecked(x);
+                } else {
+                    if let Some((is_p_left, _)) = Node::left_parent_unchecked(p) {
+                        if is_x_left == is_p_left {
+                            // zig-zig
+                            self.rotate_unchecked(p);
+                            self.rotate_unchecked(x);
+                        } else {
+                            // zig-zag
+                            self.rotate_unchecked(x);
+                            self.rotate_unchecked(x);
+                        }
+                    } else {
+                        // `g` simply doesn't exist, and `x` is not a root of `self`, thus `p`
+                        // should be the root. However, this branch is for the case where
+                        // `p` is not the root.
+                        unreachable!("`p` is not a root of `self`, but `g` doesn't exist and `x` is not a root either.");
+                    }
+                }
+            } else {
+                // If `x` is not a root but doesn't have a parent, this is a bug.
+                unreachable!("`x` is not a root of `self`, but doesn't have a parent node!");
+            }
         }
+
+        // if let Some(root) = self.root {
+        //     while !ptr::eq(root.as_ptr(), x.as_ptr()) {}
+        // } else {
+        //     unreachable!("`self` is empty, thus `x` is not in `self`.");
+        // }
     }
 
     /// Finds the `index`-th node, splays it, and returns it. No nodes need to be propagated before the
@@ -607,6 +773,55 @@ impl<T> Rope<T> {
                 // It's guaranteed that every node from `self.root` to `ptr` are propagated, thus
                 // it's safe to call splay_unchecked.
                 self.splay_unchecked(ptr);
+                Some(ptr)
+            }
+        } else {
+            unreachable!("The len is {}, but it has no root", self.size);
+        }
+    }
+
+    /// Finds the `index`-th node and returns with without splaying it. No nodes need ot be
+    /// propagated before the function call, and no nodes will be propagated.
+    fn kth_ptr_static(&self, index: usize) -> Link<T> {
+        if index >= self.len() {
+            return None;
+        }
+
+        if let Some(root) = self.root {
+            unsafe {
+                let mut ptr = root;
+                let mut rem = index;
+
+                loop {
+                    Node::propagate(ptr);
+                    let lsize = if let Some(l) = (*ptr.as_ptr()).l {
+                        (*l.as_ptr()).subt
+                    } else {
+                        0
+                    };
+
+                    match rem.cmp(&lsize) {
+                        Less => {
+                            ptr = if let Some(l) = (*ptr.as_ptr()).l {
+                                l
+                            } else {
+                                break;
+                            }
+                        }
+                        Equal => {
+                            break;
+                        }
+                        Greater => {
+                            rem -= lsize + 1;
+                            ptr = if let Some(r) = (*ptr.as_ptr()).r {
+                                r
+                            } else {
+                                break;
+                            }
+                        }
+                    }
+                }
+
                 Some(ptr)
             }
         } else {
